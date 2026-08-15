@@ -103,6 +103,22 @@ public:
     OutputsInfo getOutputs() override;
     void setOutputDevice(const std::string& typeId, const std::string& deviceId) override;
 
+    LibraryInfo getLibraryInfo() override;
+
+    PlaylistItemsResult getLibraryItems(
+        const LibraryQuery& query, const Range& range, ColumnsQuery* columns) override;
+
+    LibraryNodesResult getLibraryNodes(
+        const LibraryQuery& query, const Range& range, ColumnsQuery* columns) override;
+
+    void addLibraryItems(
+        const PlaylistRef& plref,
+        const LibraryItemQuery& query,
+        int32_t targetIndex,
+        AddItemsOptions options) override;
+
+    boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemQuery& query) override;
+
     boost::unique_future<ArtworkResult> fetchCurrentArtwork() override;
     boost::unique_future<ArtworkResult> fetchArtwork(const ArtworkQuery& query) override;
 
@@ -130,6 +146,13 @@ private:
 
     std::vector<std::string> evaluatePlaybackColumns(
         const TitleFormatVector& compiledColumns);
+
+    std::vector<std::string> evaluateItemColumns(
+        const metadb_handle_ptr& item,
+        const TitleFormatVector& compiledColumns,
+        pfc::string8* buffer);
+
+    void collectLibraryItems(const LibraryItemQuery& query, metadb_handle_list* outItems);
 
     void makeItemsMask(
         t_size playlist,

@@ -273,6 +273,87 @@ struct ArtworkResult
     std::vector<uint8_t> fileData;
 };
 
+struct LibraryInfo
+{
+    bool supported = false;
+    bool enabled = false;
+    int32_t itemCount = 0;
+};
+
+struct LibraryQuery
+{
+    LibraryQuery() = default;
+    LibraryQuery(LibraryQuery&&) = default;
+    LibraryQuery& operator=(LibraryQuery&&) = default;
+
+    std::string search;
+    std::string sortBy;
+    bool sortDescending = false;
+
+    // Folder to list children of, relative to media library folders, empty for top level
+    std::string path;
+};
+
+struct LibraryNodeInfo
+{
+    LibraryNodeInfo() = default;
+    LibraryNodeInfo(LibraryNodeInfo&&) = default;
+    LibraryNodeInfo& operator=(LibraryNodeInfo&&) = default;
+
+    bool isFolder = false;
+    std::string name;
+    std::string path;
+    int32_t itemCount = 0;
+    int32_t subsong = 0;
+    std::vector<std::string> columns;
+};
+
+// Addresses media library content: a single track, all tracks of a file,
+// everything under a folder or the whole library
+struct LibraryItemQuery
+{
+    LibraryItemQuery() = default;
+    LibraryItemQuery(LibraryItemQuery&&) = default;
+    LibraryItemQuery& operator=(LibraryItemQuery&&) = default;
+
+    // Node path as returned by getLibraryNodes(), empty for the whole library
+    std::string path;
+
+    // Subsong index of a track within its file, negative matches every subsong
+    int32_t subsong = -1;
+
+    std::string search;
+};
+
+struct LibraryNodesResult
+{
+    LibraryNodesResult(
+        int32_t offsetVal,
+        int32_t totalCountVal,
+        std::vector<LibraryNodeInfo> itemsVal)
+        : offset(offsetVal),
+          totalCount(totalCountVal),
+          items(std::move(itemsVal))
+    {
+    }
+
+    LibraryNodesResult(LibraryNodesResult&&) = default;
+    LibraryNodesResult& operator=(LibraryNodesResult&&) = default;
+
+    int32_t offset;
+    int32_t totalCount;
+    std::vector<LibraryNodeInfo> items;
+
+    // Folder these items belong to, empty at top level
+    std::string path;
+
+    // Folder to navigate up to, only meaningful when hasParent is set
+    std::string parentPath;
+    bool hasParent = false;
+
+    std::string pathSeparator;
+};
+
 class PlayerOption
 {
 public:
@@ -561,6 +642,54 @@ public:
     {
         (void) typeId;
         (void) deviceId;
+    }
+
+    // Media library API
+
+    virtual LibraryInfo getLibraryInfo()
+    {
+        return LibraryInfo();
+    }
+
+    virtual PlaylistItemsResult getLibraryItems(
+        const LibraryQuery& query, const Range& range, ColumnsQuery* columns)
+    {
+        (void) query;
+        (void) range;
+        (void) columns;
+
+        throw std::logic_error("media library is not supported by this player");
+    }
+
+    virtual LibraryNodesResult getLibraryNodes(
+        const LibraryQuery& query, const Range& range, ColumnsQuery* columns)
+    {
+        (void) query;
+        (void) range;
+        (void) columns;
+
+        throw std::logic_error("media library is not supported by this player");
+    }
+
+    virtual void addLibraryItems(
+        const PlaylistRef& plref,
+        const LibraryItemQuery& query,
+        int32_t targetIndex,
+        AddItemsOptions options)
+    {
+        (void) plref;
+        (void) query;
+        (void) targetIndex;
+        (void) options;
+
+        throw std::logic_error("media library is not supported by this player");
+    }
+
+    virtual boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemQuery& query)
+    {
+        (void) query;
+
+        throw std::logic_error("media library is not supported by this player");
     }
 
     // Artwork API

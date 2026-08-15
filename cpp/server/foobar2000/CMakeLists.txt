@@ -14,6 +14,7 @@ set(
     common.hpp
     player.hpp
     player_control.cpp
+    player_library.cpp
     player_misc.cpp
     player_options.cpp player_options.hpp
     player_playlists.cpp

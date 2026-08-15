@@ -21,6 +21,7 @@ public:
 
     ResponsePtr getCurrentArtwork();
     ResponsePtr getArtwork();
+    ResponsePtr getLibraryArtwork();
 
     static void defineRoutes(Router* router, WorkQueue* workQueue, Player* player, const ContentTypeMap& contentTypes);
 

@@ -271,6 +271,38 @@ export default class PlayerClient
         return this.post('api/outputs/active', { typeId, deviceId });
     }
 
+    getLibraryInfo()
+    {
+        return this.get('api/library/info').then(r => r.library);
+    }
+
+    getLibraryItems(columns, range, options)
+    {
+        const { offset, count } = parseRange(range);
+        const url = `api/library/items/${offset}:${count}`;
+        return this.get(url, Object.assign({ columns }, options)).then(r => r.libraryItems);
+    }
+
+    browseLibrary(path, columns, range)
+    {
+        return this.getLibraryItems(columns, range, { view: 'folders', path });
+    }
+
+    addLibraryItems(plref, options)
+    {
+        return this.post('api/library/items/add', Object.assign({ plref }, options));
+    }
+
+    getLibraryArtworkUrl(path, subsong)
+    {
+        const params = new URLSearchParams({ path });
+
+        if (subsong !== undefined)
+            params.set('subsong', subsong);
+
+        return `api/artwork/library?${params}`;
+    }
+
     getFileSystemRoots()
     {
         return this.get('api/browser/roots');

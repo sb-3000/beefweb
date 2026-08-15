@@ -133,6 +133,7 @@ set(
     gzip.cpp gzip.hpp
     http.cpp http.hpp
     json.hpp
+    library_controller.cpp library_controller.hpp
     log.cpp log.hpp
     outputs_controller.cpp outputs_controller.hpp
     parsing.cpp parsing.hpp

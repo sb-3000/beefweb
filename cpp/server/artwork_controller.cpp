@@ -44,6 +44,28 @@ ResponsePtr ArtworkController::getArtwork()
     return Response::async(std::move(responseFuture));
 }
 
+ResponsePtr ArtworkController::getLibraryArtwork()
+{
+    if (!player_->getLibraryInfo().supported)
+    {
+        return Response::error(
+            HttpStatus::S_501_NOT_IMPLEMENTED, "media library is not supported by this player");
+    }
+
+    LibraryItemQuery query;
+
+    query.path = param<std::string>("path");
+    query.subsong = optionalParam<int32_t>("subsong", -1);
+
+    auto responseFuture = player_->fetchLibraryArtwork(query).then(
+        boost::launch::sync, [this](boost::unique_future<ArtworkResult> resultFuture) {
+            auto result = resultFuture.get();
+            return getResponse(&result);
+        });
+
+    return Response::async(std::move(responseFuture));
+}
+
 ResponsePtr ArtworkController::getResponse(ArtworkResult* result)
 {
     if (!result->filePath.empty())
@@ -94,6 +116,7 @@ void ArtworkController::defineRoutes(
     routes.useWorkQueue(workQueue);
     routes.setPrefix("api/artwork");
     routes.get("current", &ArtworkController::getCurrentArtwork);
+    routes.get("library", &ArtworkController::getLibraryArtwork);
     routes.get(":plref/:index", &ArtworkController::getArtwork);
 }
 

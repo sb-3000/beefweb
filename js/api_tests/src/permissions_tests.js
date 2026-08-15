@@ -36,6 +36,11 @@ describe('permissions', () => {
         assert.equal(response.status, 403);
     });
 
+    test('add library items', async () => {
+        const response = await post('/api/library/items/add', { plref: 0, path: '' });
+        assert.equal(response.status, 403);
+    });
+
     test('change output', async () => {
         const response = await post('/api/outputs/active', outputConfigs.alternate[0]);
         assert.equal(response.status, 403);

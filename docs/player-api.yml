@@ -15,6 +15,8 @@ tags:
   description: Output configuration APIs
 - name: query
   description: Query APIs
+- name: library
+  description: Media library APIs (foobar2000 only)
 - name: browser
   description: File browser APIs
 - name: artwork
@@ -734,6 +736,138 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QueryResponse'
+  /library/info:
+    get:
+      tags:
+      - library
+      summary: Get media library state
+      operationId: getLibraryInfo
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLibraryInfoResponse'
+  /library/items/{range}:
+    get:
+      tags:
+      - library
+      summary: Get media library items
+      operationId: getLibraryItems
+      parameters:
+      - name: range
+        in: path
+        description: Item range in form offset:count
+        required: true
+        schema:
+          type: string
+      - name: columns
+        in: query
+        description: Item columns to return
+        required: true
+        style: form
+        explode: false
+        schema:
+          type: array
+          items:
+            type: string
+      - name: view
+        in: query
+        description: >
+          How to present the media library:
+          "flat" returns a paged list of tracks,
+          "folders" returns children of a single folder (subfolders first, then tracks)
+        schema:
+          type: string
+          enum: [flat, folders]
+          default: flat
+      - name: path
+        in: query
+        description: >
+          Folder to list children of, as returned in the "path" property of a folder item.
+          Only used when view is "folders", empty or missing means top level
+        schema:
+          type: string
+      - name: query
+        in: query
+        description: Search query to filter items, uses player query syntax
+        schema:
+          type: string
+      - name: sort
+        in: query
+        description: >
+          Title formatting expression to sort items by, defaults to file path.
+          Not used when view is "folders", where items are sorted by name
+        schema:
+          type: string
+      - name: desc
+        in: query
+        description: Sort in descending order
+        schema:
+          type: boolean
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLibraryItemsResponse'
+        501:
+          description: Media library is not supported by current player
+          content: {}
+  /library/items/add:
+    post:
+      tags:
+      - library
+      summary: Add media library items to playlist
+      operationId: addLibraryItems
+      requestBody:
+        description: >
+          Items to add, addressed the same way as in media library browsing.
+          Omitting both path and query adds the entire media library
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLibraryItemsRequest'
+        required: true
+      responses:
+        204:
+          description: Success
+          content: {}
+        501:
+          description: Media library is not supported by current player
+          content: {}
+  /artwork/library:
+    get:
+      tags:
+      - artwork
+      summary: Get artwork for media library item
+      operationId: getLibraryArtwork
+      parameters:
+      - name: path
+        in: query
+        description: Item path as returned by media library browsing
+        required: true
+        schema:
+          type: string
+      - name: subsong
+        in: query
+        description: >
+          Subsong index within the file, as returned in the "subsong" property.
+          When omitted artwork of the first matching track is returned
+        schema:
+          type: integer
+      responses:
+        200:
+          description: Success
+          content: {}
+        404:
+          description: No artwork is found for specified item
+          content: {}
+        501:
+          description: Media library is not supported by current player
+          content: {}
   /browser/roots:
     get:
       tags:
@@ -1056,6 +1190,105 @@ components:
       properties:
         playlistItems:
           $ref: '#/components/schemas/PlaylistItemsResult'
+    LibraryInfo:
+      type: object
+      properties:
+        supported:
+          type: boolean
+          description: Whether current player provides media library API
+        enabled:
+          type: boolean
+          description: Whether media library is configured in the player
+        itemCount:
+          type: integer
+    AddLibraryItemsRequest:
+      type: object
+      properties:
+        plref:
+          type: string | integer
+          description: Target playlist id or index
+        path:
+          type: string
+          description: >
+            Item path as returned by media library browsing.
+            Selects a single file when it points to a track,
+            everything below it when it points to a folder
+        subsong:
+          type: integer
+          description: >
+            Subsong index within the file, adds a single track of a cue sheet or disc image.
+            When omitted all tracks of the file are added
+        query:
+          type: string
+          description: Search query to filter added items, uses player query syntax
+        index:
+          type: integer
+          description: Target position in playlist, appends when omitted
+        replace:
+          type: boolean
+          description: Replace playlist contents
+        play:
+          type: boolean
+          description: Start playing the first added item
+    GetLibraryInfoResponse:
+      type: object
+      properties:
+        library:
+          $ref: '#/components/schemas/LibraryInfo'
+    LibraryNodeInfo:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [D, F]
+          description: D for a folder, F for a track
+        name:
+          type: string
+          description: Name of the folder or file
+        path:
+          type: string
+          description: Path relative to media library folders, pass back as "path" to list children
+        itemCount:
+          type: integer
+          description: Number of tracks under this folder, folders only
+        subsong:
+          type: integer
+          description: >
+            Subsong index within the file, tracks only.
+            0 for regular files, non-zero for tracks of cue sheets and disc images
+        columns:
+          type: array
+          description: Requested columns, tracks only
+          items:
+            type: string
+    LibraryNodesResult:
+      type: object
+      properties:
+        offset:
+          type: integer
+        totalCount:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibraryNodeInfo'
+        path:
+          type: string
+          description: Folder these items belong to, empty at top level
+        parentPath:
+          type: string
+          description: >
+            Folder to navigate up to, pass it back as "path".
+            Absent when already at top level
+        pathSeparator:
+          type: string
+    GetLibraryItemsResponse:
+      type: object
+      properties:
+        libraryItems:
+          oneOf:
+          - $ref: '#/components/schemas/PlaylistItemsResult'
+          - $ref: '#/components/schemas/LibraryNodesResult'
     UpdatePlaylistsRequest:
       type: object
       properties:

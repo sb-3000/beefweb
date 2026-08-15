@@ -5,6 +5,7 @@
 #include "play_queue_controller.hpp"
 #include "player_controller.hpp"
 #include "playlists_controller.hpp"
+#include "library_controller.hpp"
 #include "query_controller.hpp"
 #include "cache_support_filter.hpp"
 #include "compression_filter.hpp"
@@ -59,6 +60,7 @@ void ServerHost::reconfigure(SettingsDataPtr settings)
     PlaylistsController::defineRoutes(router, playerQueue, player_, settings);
     PlayQueueController::defineRoutes(router, playerQueue, player_);
     OutputsController::defineRoutes(router, playerQueue, player_, settings);
+    LibraryController::defineRoutes(router, playerQueue, player_, settings);
     QueryController::defineRoutes(router, playerQueue, player_, &dispatcher_, settings);
     ArtworkController::defineRoutes(router, playerQueue, player_, contentTypes_);
 

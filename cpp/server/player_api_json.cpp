@@ -187,6 +187,42 @@ void to_json(Json& json, const PlayQueueItemInfo& value)
     json["columns"] = value.columns;
 }
 
+void to_json(Json& json, const LibraryInfo& value)
+{
+    json["supported"] = value.supported;
+    json["enabled"] = value.enabled;
+    json["itemCount"] = value.itemCount;
+}
+
+void to_json(Json& json, const LibraryNodeInfo& value)
+{
+    json["type"] = value.isFolder ? "D" : "F";
+    json["name"] = value.name;
+    json["path"] = value.path;
+
+    if (value.isFolder)
+    {
+        json["itemCount"] = value.itemCount;
+    }
+    else
+    {
+        json["subsong"] = value.subsong;
+        json["columns"] = value.columns;
+    }
+}
+
+void to_json(Json& json, const LibraryNodesResult& value)
+{
+    json["offset"] = value.offset;
+    json["totalCount"] = value.totalCount;
+    json["items"] = value.items;
+    json["path"] = value.path;
+    json["pathSeparator"] = value.pathSeparator;
+
+    if (value.hasParent)
+        json["parentPath"] = value.parentPath;
+}
+
 void to_json(Json& json, const OutputDeviceInfo& value)
 {
     json["id"] = value.id;
