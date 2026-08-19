@@ -46,7 +46,7 @@ ResponsePtr ArtworkController::getArtwork()
 
 ResponsePtr ArtworkController::getLibraryArtwork()
 {
-    if (!player_->getLibraryInfo().supported)
+    if (!player_->supportsLibrary())
     {
         return Response::error(
             HttpStatus::S_501_NOT_IMPLEMENTED, "media library is not supported by this player");

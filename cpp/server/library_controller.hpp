@@ -20,6 +20,7 @@ public:
 
     ResponsePtr getInfo();
     ResponsePtr getItems();
+    ResponsePtr browse();
     ResponsePtr addItems();
 
     static void defineRoutes(Router* router, WorkQueue* workQueue, Player* player, SettingsDataPtr settings);

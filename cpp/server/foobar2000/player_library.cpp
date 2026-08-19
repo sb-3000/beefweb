@@ -9,15 +9,19 @@ namespace player_foobar2000 {
 
 namespace {
 
-#ifdef MSRV_OS_WINDOWS
-constexpr char PATH_SEPARATOR = '\\';
-#else
+// Media library paths are identifiers used within the API only,
+// they are kept platform independent and are never passed to the file system
 constexpr char PATH_SEPARATOR = '/';
+
+#ifdef MSRV_OS_WINDOWS
+constexpr char NATIVE_PATH_SEPARATOR = '\\';
+#else
+constexpr char NATIVE_PATH_SEPARATOR = '/';
 #endif
 
 bool isSeparator(char ch)
 {
-    return ch == '\\' || ch == '/';
+    return ch == PATH_SEPARATOR;
 }
 
 size_t findSeparator(const std::string& path, size_t start)
@@ -50,8 +54,31 @@ std::string joinNodePath(const std::string& prefix, const std::string& name)
     return prefix.empty() ? name : prefix + PATH_SEPARATOR + name;
 }
 
-// Media library items are addressed by path relative to the media library folder they belong to,
-// so that browsing starts at library folders instead of file system roots
+using NodeItem = std::pair<std::string, metadb_handle_ptr>;
+
+// Single file may hold several tracks (cue sheets), keep such tracks in subsong order
+void sortItems(std::vector<NodeItem>* items)
+{
+    std::sort(items->begin(), items->end(), [](const NodeItem& left, const NodeItem& right) {
+        if (left.first != right.first)
+            return left.first < right.first;
+
+        return left.second->get_location().get_subsong() < right.second->get_location().get_subsong();
+    });
+}
+
+// Folder is expected to be normalized, empty folder is the top level and contains everything
+bool isSubpath(const std::string& path, const std::string& folder)
+{
+    if (folder.empty())
+        return true;
+
+    return path.length() > folder.length()
+        && isSeparator(path[folder.length()])
+        && path.compare(0, folder.length(), folder) == 0;
+}
+
+// Item locations are prefixed with a scheme, plain file system path is what artwork lookup needs
 std::string getAbsolutePath(const metadb_handle_ptr& item)
 {
     constexpr char fileScheme[] = "file://";
@@ -89,15 +116,54 @@ std::string findFolderArtwork(const std::string& folderPath)
     return std::string();
 }
 
-std::string getRelativePath(
+// Media library items are addressed by path relative to the media library folder they belong to,
+// so that browsing starts at library folders instead of file system roots
+std::string getNodePath(
     const library_manager::ptr& libraryManager,
     const metadb_handle_ptr& item,
     pfc::string8* buffer)
 {
-    if (libraryManager->get_relative_path(item, *buffer))
-        return std::string(buffer->get_ptr(), buffer->get_length());
+    std::string path;
 
-    return getAbsolutePath(item);
+    if (libraryManager->get_relative_path(item, *buffer))
+    {
+        path.assign(buffer->get_ptr(), buffer->get_length());
+    }
+    else
+    {
+        // Should not happen for items coming from the media library,
+        // fall back to full path so that an item is never silently dropped
+        path = getAbsolutePath(item);
+    }
+
+    std::replace(path.begin(), path.end(), NATIVE_PATH_SEPARATOR, PATH_SEPARATOR);
+
+    return path;
+}
+
+// Absolute paths keep the native separator, node paths do not
+bool endsWithNodePath(const std::string& absolutePath, const std::string& nodePath)
+{
+    if (absolutePath.length() < nodePath.length())
+        return false;
+
+    auto offset = absolutePath.length() - nodePath.length();
+
+    for (size_t i = 0; i < nodePath.length(); i++)
+    {
+        auto left = absolutePath[offset + i];
+        auto right = nodePath[i];
+
+        if (left == right)
+            continue;
+
+        if (left == NATIVE_PATH_SEPARATOR && right == PATH_SEPARATOR)
+            continue;
+
+        return false;
+    }
+
+    return true;
 }
 
 class ItemCounter : public library_manager::enum_callback
@@ -161,21 +227,9 @@ void filterItems(metadb_handle_list* items, const std::string& expression)
 
 }
 
-std::vector<std::string> PlayerImpl::evaluateItemColumns(
-    const metadb_handle_ptr& item,
-    const TitleFormatVector& compiledColumns,
-    pfc::string8* buffer)
+bool PlayerImpl::supportsLibrary()
 {
-    std::vector<std::string> result;
-    result.reserve(compiledColumns.size());
-
-    for (auto& compiledColumn : compiledColumns)
-    {
-        item->format_title(nullptr, *buffer, compiledColumn, nullptr);
-        result.emplace_back(buffer->get_ptr(), buffer->get_length());
-    }
-
-    return result;
+    return true;
 }
 
 LibraryInfo PlayerImpl::getLibraryInfo()
@@ -258,41 +312,31 @@ void PlayerImpl::collectLibraryItems(const LibraryItemQuery& query, metadb_handl
 
     auto path = normalizeNodePath(query.path);
 
-    std::vector<std::pair<std::string, metadb_handle_ptr>> matches;
+    std::vector<NodeItem> matches;
     pfc::string8 buffer;
 
     for (t_size i = 0; i < items.get_count(); i++)
     {
         const auto& item = items[i];
-        auto itemPath = getRelativePath(libraryManager, item, &buffer);
+        auto itemPath = getNodePath(libraryManager, item, &buffer);
 
-        if (!path.empty())
+        if (!path.empty() && itemPath == path)
         {
-            if (itemPath.length() == path.length() && itemPath == path)
-            {
-                if (query.subsong >= 0
-                    && static_cast<t_uint32>(query.subsong) != item->get_location().get_subsong())
-                {
-                    continue;
-                }
-            }
-            else if (itemPath.length() <= path.length()
-                || itemPath.compare(0, path.length(), path) != 0
-                || !isSeparator(itemPath[path.length()]))
+            if (query.subsong >= 0
+                && static_cast<t_uint32>(query.subsong) != item->get_location().get_subsong())
             {
                 continue;
             }
+        }
+        else if (!isSubpath(itemPath, path))
+        {
+            continue;
         }
 
         matches.emplace_back(std::move(itemPath), item);
     }
 
-    std::sort(matches.begin(), matches.end(), [](const auto& left, const auto& right) {
-        if (left.first != right.first)
-            return left.first < right.first;
-
-        return left.second->get_location().get_subsong() < right.second->get_location().get_subsong();
-    });
+    sortItems(&matches);
 
     outItems->remove_all();
     outItems->prealloc(matches.size());
@@ -357,16 +401,15 @@ boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const Librar
     auto path = normalizeNodePath(query.path);
 
     pfc::string8 buffer;
-    auto relativePath = getRelativePath(library_manager::get(), firstItem, &buffer);
+    auto nodePath = getNodePath(library_manager::get(), firstItem, &buffer);
 
     // Query addresses a folder rather than a single file, prefer artwork stored in that folder
-    if (!path.empty() && relativePath.length() > path.length())
+    if (!path.empty() && nodePath.length() > path.length())
     {
         auto absolutePath = getAbsolutePath(firstItem);
-        auto suffixLength = relativePath.length() - path.length();
+        auto suffixLength = nodePath.length() - path.length();
 
-        if (absolutePath.length() > suffixLength
-            && absolutePath.compare(absolutePath.length() - relativePath.length(), relativePath.length(), relativePath) == 0)
+        if (absolutePath.length() > suffixLength && endsWithNodePath(absolutePath, nodePath))
         {
             auto folderPath = absolutePath.substr(0, absolutePath.length() - suffixLength);
             auto artwork = findFolderArtwork(folderPath);
@@ -398,24 +441,17 @@ LibraryNodesResult PlayerImpl::getLibraryNodes(
     auto childOffset = prefix.empty() ? 0 : prefix.length() + 1;
 
     std::map<std::string, int32_t> folders;
-    std::vector<std::pair<std::string, metadb_handle_ptr>> files;
+    std::vector<NodeItem> files;
 
     pfc::string8 buffer;
 
     for (t_size i = 0; i < items.get_count(); i++)
     {
         const auto& item = items[i];
-        auto path = getRelativePath(libraryManager, item, &buffer);
+        auto path = getNodePath(libraryManager, item, &buffer);
 
-        if (!prefix.empty())
-        {
-            if (path.length() <= childOffset
-                || path.compare(0, prefix.length(), prefix) != 0
-                || !isSeparator(path[prefix.length()]))
-            {
-                continue;
-            }
-        }
+        if (!isSubpath(path, prefix))
+            continue;
 
         auto separator = findSeparator(path, childOffset);
 
@@ -425,13 +461,7 @@ LibraryNodesResult PlayerImpl::getLibraryNodes(
             folders[path.substr(childOffset, separator - childOffset)]++;
     }
 
-    // Single file may hold several tracks (cue sheets), keep such tracks in subsong order
-    std::sort(files.begin(), files.end(), [](const auto& left, const auto& right) {
-        if (left.first != right.first)
-            return left.first < right.first;
-
-        return left.second->get_location().get_subsong() < right.second->get_location().get_subsong();
-    });
+    sortItems(&files);
 
     std::vector<LibraryNodeInfo> nodes;
     std::vector<metadb_handle_ptr> handles;
@@ -485,7 +515,6 @@ LibraryNodesResult PlayerImpl::getLibraryNodes(
         std::move(result));
 
     nodesResult.path = prefix;
-    nodesResult.pathSeparator = std::string(1, PATH_SEPARATOR);
 
     if (!prefix.empty())
     {

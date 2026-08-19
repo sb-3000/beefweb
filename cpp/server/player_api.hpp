@@ -350,8 +350,6 @@ struct LibraryNodesResult
     // Folder to navigate up to, only meaningful when hasParent is set
     std::string parentPath;
     bool hasParent = false;
-
-    std::string pathSeparator;
 };
 
 class PlayerOption
@@ -645,6 +643,11 @@ public:
     }
 
     // Media library API
+
+    virtual bool supportsLibrary()
+    {
+        return false;
+    }
 
     virtual LibraryInfo getLibraryInfo()
     {

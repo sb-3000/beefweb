@@ -283,9 +283,11 @@ export default class PlayerClient
         return this.get(url, Object.assign({ columns }, options)).then(r => r.libraryItems);
     }
 
-    browseLibrary(path, columns, range)
+    browseLibrary(path, columns, range, options)
     {
-        return this.getLibraryItems(columns, range, { view: 'folders', path });
+        const { offset, count } = parseRange(range);
+        const url = `api/library/browse/${offset}:${count}`;
+        return this.get(url, Object.assign({ columns, path }, options)).then(r => r.libraryNodes);
     }
 
     addLibraryItems(plref, options)

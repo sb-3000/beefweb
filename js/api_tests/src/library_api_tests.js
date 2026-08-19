@@ -49,7 +49,6 @@ describe('library api', () => {
         // Top level has nowhere to navigate up to
         assert.equal(result.path, '');
         assert.equal(result.parentPath, undefined);
-        assert.ok(result.pathSeparator);
 
         for (const item of result.items)
         {
@@ -80,12 +79,12 @@ describe('library api', () => {
         assert.equal(items.totalCount, 0);
     });
 
-    test('reject unknown view', async () => {
+    test('browse requires supported player', async () => {
         const response = await client.handler.axios.get(
-            '/api/library/items/0:10',
-            { params: { columns: ['%title%'], view: 'nonsense' }, validateStatus: () => true });
+            '/api/library/browse/0:10',
+            { params: { columns: ['%title%'] }, validateStatus: () => true });
 
-        assert.equal(response.status, isSupported ? 400 : 501);
+        assert.equal(response.status, isSupported ? 200 : 501);
     });
 
     test('get library items with query', async () => {

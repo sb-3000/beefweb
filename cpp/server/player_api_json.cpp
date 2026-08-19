@@ -217,7 +217,6 @@ void to_json(Json& json, const LibraryNodesResult& value)
     json["totalCount"] = value.totalCount;
     json["items"] = value.items;
     json["path"] = value.path;
-    json["pathSeparator"] = value.pathSeparator;
 
     if (value.hasParent)
         json["parentPath"] = value.parentPath;

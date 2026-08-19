@@ -193,6 +193,23 @@ boost::unique_future<ArtworkResult> PlayerImpl::fetchArtwork(const metadb_handle
     return boost::make_future<ArtworkResult>(ArtworkResult(artData->get_ptr(), artData->get_size()));
 }
 
+std::vector<std::string> PlayerImpl::evaluateItemColumns(
+    const metadb_handle_ptr& item,
+    const TitleFormatVector& compiledColumns,
+    pfc::string8* buffer)
+{
+    std::vector<std::string> result;
+    result.reserve(compiledColumns.size());
+
+    for (auto& compiledColumn : compiledColumns)
+    {
+        item->format_title(nullptr, *buffer, compiledColumn, nullptr);
+        result.emplace_back(buffer->get_ptr(), buffer->get_length());
+    }
+
+    return result;
+}
+
 TitleFormatVector PlayerImpl::compileColumns(const std::vector<std::string>& columns)
 {
     TitleFormatVector compiledColumns;

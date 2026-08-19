@@ -772,23 +772,6 @@ paths:
           type: array
           items:
             type: string
-      - name: view
-        in: query
-        description: >
-          How to present the media library:
-          "flat" returns a paged list of tracks,
-          "folders" returns children of a single folder (subfolders first, then tracks)
-        schema:
-          type: string
-          enum: [flat, folders]
-          default: flat
-      - name: path
-        in: query
-        description: >
-          Folder to list children of, as returned in the "path" property of a folder item.
-          Only used when view is "folders", empty or missing means top level
-        schema:
-          type: string
       - name: query
         in: query
         description: Search query to filter items, uses player query syntax
@@ -796,9 +779,7 @@ paths:
           type: string
       - name: sort
         in: query
-        description: >
-          Title formatting expression to sort items by, defaults to file path.
-          Not used when view is "folders", where items are sorted by name
+        description: Title formatting expression to sort items by, defaults to file path
         schema:
           type: string
       - name: desc
@@ -813,6 +794,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GetLibraryItemsResponse'
+        501:
+          description: Media library is not supported by current player
+          content: {}
+  /library/browse/{range}:
+    get:
+      tags:
+      - library
+      summary: Browse media library as folder structure
+      operationId: browseLibrary
+      description: >
+        Returns children of a single folder: subfolders first, then tracks.
+        Items are sorted by name
+      parameters:
+      - name: range
+        in: path
+        description: Item range in form offset:count
+        required: true
+        schema:
+          type: string
+      - name: columns
+        in: query
+        description: Columns to return for track items
+        required: true
+        style: form
+        explode: false
+        schema:
+          type: array
+          items:
+            type: string
+      - name: path
+        in: query
+        description: >
+          Folder to list children of, as returned in the "path" property of a folder item.
+          Empty or missing means top level
+        schema:
+          type: string
+      - name: query
+        in: query
+        description: Search query to filter items, uses player query syntax
+        schema:
+          type: string
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrowseLibraryResponse'
         501:
           description: Media library is not supported by current player
           content: {}
@@ -1280,15 +1309,16 @@ components:
           description: >
             Folder to navigate up to, pass it back as "path".
             Absent when already at top level
-        pathSeparator:
-          type: string
     GetLibraryItemsResponse:
       type: object
       properties:
         libraryItems:
-          oneOf:
-          - $ref: '#/components/schemas/PlaylistItemsResult'
-          - $ref: '#/components/schemas/LibraryNodesResult'
+          $ref: '#/components/schemas/PlaylistItemsResult'
+    BrowseLibraryResponse:
+      type: object
+      properties:
+        libraryNodes:
+          $ref: '#/components/schemas/LibraryNodesResult'
     UpdatePlaylistsRequest:
       type: object
       properties:

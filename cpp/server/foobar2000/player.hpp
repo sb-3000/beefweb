@@ -103,6 +103,7 @@ public:
     OutputsInfo getOutputs() override;
     void setOutputDevice(const std::string& typeId, const std::string& deviceId) override;
 
+    bool supportsLibrary() override;
     LibraryInfo getLibraryInfo() override;
 
     PlaylistItemsResult getLibraryItems(

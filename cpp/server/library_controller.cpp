@@ -8,13 +8,6 @@
 
 namespace msrv {
 
-namespace {
-
-constexpr char VIEW_FLAT[] = "flat";
-constexpr char VIEW_FOLDERS[] = "folders";
-
-}
-
 LibraryController::LibraryController(Request* request, Player* player, SettingsDataPtr settings)
     : ControllerBase(request), player_(player), settings_(std::move(settings))
 {
@@ -35,37 +28,40 @@ ResponsePtr LibraryController::notSupportedResponse()
 
 ResponsePtr LibraryController::getItems()
 {
-    if (!player_->getLibraryInfo().supported)
+    if (!player_->supportsLibrary())
         return notSupportedResponse();
 
     auto range = param<Range>("range");
-    auto columns = param<std::vector<std::string>>("columns");
-    auto view = optionalParam<std::string>("view", VIEW_FLAT);
+    auto columnsQuery = player_->createColumnsQuery(param<std::vector<std::string>>("columns"));
 
     LibraryQuery query;
     query.search = optionalParam<std::string>("query", std::string());
     query.sortBy = optionalParam<std::string>("sort", std::string());
     query.sortDescending = optionalParam<bool>("desc", false);
 
-    auto columnsQuery = player_->createColumnsQuery(columns);
-
-    if (view == VIEW_FOLDERS)
-    {
-        query.path = optionalParam<std::string>("path", std::string());
-        return Response::json({{"libraryItems", player_->getLibraryNodes(query, range, columnsQuery.get())}});
-    }
-
-    if (view != VIEW_FLAT)
-        throw InvalidRequestException("invalid view: " + view);
-
     return Response::json({{"libraryItems", player_->getLibraryItems(query, range, columnsQuery.get())}});
+}
+
+ResponsePtr LibraryController::browse()
+{
+    if (!player_->supportsLibrary())
+        return notSupportedResponse();
+
+    auto range = param<Range>("range");
+    auto columnsQuery = player_->createColumnsQuery(param<std::vector<std::string>>("columns"));
+
+    LibraryQuery query;
+    query.path = optionalParam<std::string>("path", std::string());
+    query.search = optionalParam<std::string>("query", std::string());
+
+    return Response::json({{"libraryNodes", player_->getLibraryNodes(query, range, columnsQuery.get())}});
 }
 
 ResponsePtr LibraryController::addItems()
 {
     settings_->ensurePermissions(ApiPermissions::CHANGE_PLAYLISTS);
 
-    if (!player_->getLibraryInfo().supported)
+    if (!player_->supportsLibrary())
         return notSupportedResponse();
 
     LibraryItemQuery query;
@@ -101,6 +97,7 @@ void LibraryController::defineRoutes(
 
     routes.get("info", &LibraryController::getInfo);
     routes.get("items/:range", &LibraryController::getItems);
+    routes.get("browse/:range", &LibraryController::browse);
     routes.post("items/add", ControllerAction<LibraryController>(&LibraryController::addItems));
 }
 
