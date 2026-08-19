@@ -106,7 +106,7 @@ public:
     bool supportsLibrary() override;
     LibraryInfo getLibraryInfo() override;
 
-    PlaylistItemsResult getLibraryItems(
+    LibraryItemsResult getLibraryItems(
         const LibraryQuery& query, const Range& range, ColumnsQuery* columns) override;
 
     LibraryNodesResult getLibraryNodes(
@@ -118,7 +118,7 @@ public:
         int32_t targetIndex,
         AddItemsOptions options) override;
 
-    boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemQuery& query) override;
+    boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemRef& item) override;
 
     boost::unique_future<ArtworkResult> fetchCurrentArtwork() override;
     boost::unique_future<ArtworkResult> fetchArtwork(const ArtworkQuery& query) override;

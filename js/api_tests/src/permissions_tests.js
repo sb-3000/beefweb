@@ -36,8 +36,8 @@ describe('permissions', () => {
         assert.equal(response.status, 403);
     });
 
-    test('add library items', async () => {
-        const response = await post('/api/library/items/add', { plref: 0, path: '' });
+    test('add playlist items from library', async () => {
+        const response = await post('/api/playlists/0/items/add-from-library', { path: '' });
         assert.equal(response.status, 403);
     });
 

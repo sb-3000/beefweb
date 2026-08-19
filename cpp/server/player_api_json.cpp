@@ -194,6 +194,38 @@ void to_json(Json& json, const LibraryInfo& value)
     json["itemCount"] = value.itemCount;
 }
 
+void to_json(Json& json, const LibraryItemInfo& value)
+{
+    json["path"] = value.path;
+    json["subsong"] = value.subsong;
+    json["columns"] = value.columns;
+}
+
+void to_json(Json& json, const LibraryItemsResult& value)
+{
+    json["offset"] = value.offset;
+    json["totalCount"] = value.totalCount;
+    json["items"] = value.items;
+}
+
+void from_json(const Json& json, LibraryItemRef& value)
+{
+    if (json.is_string())
+    {
+        value.path = json.get<std::string>();
+        return;
+    }
+
+    if (!json.is_object())
+        throw std::invalid_argument("Invalid media library item reference");
+
+    value.path = json.at("path").get<std::string>();
+
+    auto subsong = json.find("subsong");
+    if (subsong != json.end() && !subsong->is_null())
+        value.subsong = subsong->get<int32_t>();
+}
+
 void to_json(Json& json, const LibraryNodeInfo& value)
 {
     json["type"] = value.isFolder ? "D" : "F";

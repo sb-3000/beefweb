@@ -179,6 +179,39 @@ ResponsePtr PlaylistsController::addItems()
     }
 }
 
+ResponsePtr PlaylistsController::addItemsFromLibrary()
+{
+    checkPermissions();
+
+    if (!player_->supportsLibrary())
+    {
+        return Response::error(
+            HttpStatus::S_501_NOT_IMPLEMENTED, "media library is not supported by this player");
+    }
+
+    LibraryItemQuery query;
+    query.search = optionalParam<std::string>("query", std::string());
+
+    if (auto items = optionalBodyParam<std::vector<LibraryItemRef>>("items"))
+        query.items = std::move(*items);
+
+    auto options = AddItemsOptions::NONE;
+
+    if (optionalParam("replace", false))
+        options |= AddItemsOptions::REPLACE;
+
+    if (optionalParam("play", false))
+        options |= AddItemsOptions::PLAY;
+
+    player_->addLibraryItems(
+        param<PlaylistRef>("plref"),
+        query,
+        optionalParam<int32_t>("index", -1),
+        options);
+
+    return Response::ok();
+}
+
 void PlaylistsController::moveItemsInPlaylist()
 {
     checkPermissions();
@@ -276,6 +309,10 @@ void PlaylistsController::defineRoutes(Router* router, WorkQueue* workQueue, Pla
     routes.post(
         ":plref/items/add",
         ControllerAction<PlaylistsController>(&PlaylistsController::addItems));
+
+    routes.post(
+        ":plref/items/add-from-library",
+        ControllerAction<PlaylistsController>(&PlaylistsController::addItemsFromLibrary));
 
     routes.post(":plref/items/move", &PlaylistsController::moveItemsInPlaylist);
     routes.post(":plref/items/copy", &PlaylistsController::copyItemsInPlaylist);

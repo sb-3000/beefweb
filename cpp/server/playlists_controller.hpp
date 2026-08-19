@@ -29,6 +29,7 @@ public:
     void clearPlaylist();
 
     ResponsePtr addItems();
+    ResponsePtr addItemsFromLibrary();
 
     void moveItemsInPlaylist();
     void copyItemsInPlaylist();

@@ -294,6 +294,38 @@ struct LibraryQuery
     std::string path;
 };
 
+struct LibraryItemInfo
+{
+    LibraryItemInfo() = default;
+    LibraryItemInfo(LibraryItemInfo&&) = default;
+    LibraryItemInfo& operator=(LibraryItemInfo&&) = default;
+
+    // Path relative to media library folders, together with subsong identifies a track
+    std::string path;
+    int32_t subsong = 0;
+    std::vector<std::string> columns;
+};
+
+struct LibraryItemsResult
+{
+    LibraryItemsResult(
+        int32_t offsetVal,
+        int32_t totalCountVal,
+        std::vector<LibraryItemInfo> itemsVal)
+        : offset(offsetVal),
+          totalCount(totalCountVal),
+          items(std::move(itemsVal))
+    {
+    }
+
+    LibraryItemsResult(LibraryItemsResult&&) = default;
+    LibraryItemsResult& operator=(LibraryItemsResult&&) = default;
+
+    int32_t offset;
+    int32_t totalCount;
+    std::vector<LibraryItemInfo> items;
+};
+
 struct LibraryNodeInfo
 {
     LibraryNodeInfo() = default;
@@ -310,17 +342,29 @@ struct LibraryNodeInfo
 
 // Addresses media library content: a single track, all tracks of a file,
 // everything under a folder or the whole library
+struct LibraryItemRef
+{
+    LibraryItemRef() = default;
+    LibraryItemRef(LibraryItemRef&&) = default;
+    LibraryItemRef(const LibraryItemRef&) = default;
+    LibraryItemRef& operator=(LibraryItemRef&&) = default;
+    LibraryItemRef& operator=(const LibraryItemRef&) = default;
+
+    // Item path as returned by media library queries, empty for the whole library
+    std::string path;
+
+    // Subsong index of a track within its file, negative matches every subsong
+    int32_t subsong = -1;
+};
+
 struct LibraryItemQuery
 {
     LibraryItemQuery() = default;
     LibraryItemQuery(LibraryItemQuery&&) = default;
     LibraryItemQuery& operator=(LibraryItemQuery&&) = default;
 
-    // Node path as returned by getLibraryNodes(), empty for the whole library
-    std::string path;
-
-    // Subsong index of a track within its file, negative matches every subsong
-    int32_t subsong = -1;
+    // Items to address, empty list means everything matching search
+    std::vector<LibraryItemRef> items;
 
     std::string search;
 };
@@ -654,7 +698,7 @@ public:
         return LibraryInfo();
     }
 
-    virtual PlaylistItemsResult getLibraryItems(
+    virtual LibraryItemsResult getLibraryItems(
         const LibraryQuery& query, const Range& range, ColumnsQuery* columns)
     {
         (void) query;
@@ -688,9 +732,9 @@ public:
         throw std::logic_error("media library is not supported by this player");
     }
 
-    virtual boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemQuery& query)
+    virtual boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemRef& item)
     {
-        (void) query;
+        (void) item;
 
         throw std::logic_error("media library is not supported by this player");
     }

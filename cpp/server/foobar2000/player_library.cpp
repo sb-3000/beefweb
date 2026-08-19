@@ -78,6 +78,22 @@ bool isSubpath(const std::string& path, const std::string& folder)
         && path.compare(0, folder.length(), folder) == 0;
 }
 
+// Item reference matches a single track when it has a subsong, all tracks of a file
+// when it does not, everything below it when it points to a folder,
+// and the whole library when its path is empty
+bool matchesRef(const LibraryItemRef& ref, const std::string& itemPath, const metadb_handle_ptr& item)
+{
+    auto path = normalizeNodePath(ref.path);
+
+    if (!path.empty() && itemPath == path)
+    {
+        return ref.subsong < 0
+            || static_cast<t_uint32>(ref.subsong) == item->get_location().get_subsong();
+    }
+
+    return isSubpath(itemPath, path);
+}
+
 // Item locations are prefixed with a scheme, plain file system path is what artwork lookup needs
 std::string getAbsolutePath(const metadb_handle_ptr& item)
 {
@@ -246,7 +262,7 @@ LibraryInfo PlayerImpl::getLibraryInfo()
     return info;
 }
 
-PlaylistItemsResult PlayerImpl::getLibraryItems(
+LibraryItemsResult PlayerImpl::getLibraryItems(
     const LibraryQuery& query, const Range& range, ColumnsQuery* columns)
 {
     auto queryImpl = dynamic_cast<ColumnsQueryImpl*>(columns);
@@ -279,27 +295,33 @@ PlaylistItemsResult PlayerImpl::getLibraryItems(
     auto offset = std::min(static_cast<t_size>(range.offset), totalCount);
     auto endOffset = std::min(static_cast<t_size>(range.endOffset()), totalCount);
 
-    std::vector<PlaylistItemInfo> result;
+    std::vector<LibraryItemInfo> result;
 
     if (offset < endOffset)
     {
         result.reserve(endOffset - offset);
 
+        auto libraryManager = library_manager::get();
         pfc::string8 buffer;
 
-        for (t_size item = offset; item < endOffset; item++)
-            result.emplace_back(evaluateItemColumns(items[item], queryImpl->columns, &buffer));
+        for (t_size i = offset; i < endOffset; i++)
+        {
+            const auto& item = items[i];
+
+            LibraryItemInfo info;
+            info.path = getNodePath(libraryManager, item, &buffer);
+            info.subsong = static_cast<int32_t>(item->get_location().get_subsong());
+            info.columns = evaluateItemColumns(item, queryImpl->columns, &buffer);
+            result.emplace_back(std::move(info));
+        }
     }
 
-    return PlaylistItemsResult(
+    return LibraryItemsResult(
         static_cast<int32_t>(offset),
         static_cast<int32_t>(totalCount),
         std::move(result));
 }
 
-// Resolves a node path to media library items:
-// exact match selects a single file (optionally a single subsong of it),
-// prefix match selects everything under a folder, empty path selects the whole library
 void PlayerImpl::collectLibraryItems(const LibraryItemQuery& query, metadb_handle_list* outItems)
 {
     auto libraryManager = library_manager::get();
@@ -310,8 +332,6 @@ void PlayerImpl::collectLibraryItems(const LibraryItemQuery& query, metadb_handl
     if (!query.search.empty())
         filterItems(&items, query.search);
 
-    auto path = normalizeNodePath(query.path);
-
     std::vector<NodeItem> matches;
     pfc::string8 buffer;
 
@@ -320,20 +340,13 @@ void PlayerImpl::collectLibraryItems(const LibraryItemQuery& query, metadb_handl
         const auto& item = items[i];
         auto itemPath = getNodePath(libraryManager, item, &buffer);
 
-        if (!path.empty() && itemPath == path)
-        {
-            if (query.subsong >= 0
-                && static_cast<t_uint32>(query.subsong) != item->get_location().get_subsong())
-            {
-                continue;
-            }
-        }
-        else if (!isSubpath(itemPath, path))
-        {
-            continue;
-        }
+        bool matched = query.items.empty();
 
-        matches.emplace_back(std::move(itemPath), item);
+        for (auto it = query.items.begin(); !matched && it != query.items.end(); ++it)
+            matched = matchesRef(*it, itemPath, item);
+
+        if (matched)
+            matches.emplace_back(std::move(itemPath), item);
     }
 
     sortItems(&matches);
@@ -389,8 +402,11 @@ void PlayerImpl::addLibraryItems(
     }
 }
 
-boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const LibraryItemQuery& query)
+boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const LibraryItemRef& item)
 {
+    LibraryItemQuery query;
+    query.items.emplace_back(item);
+
     metadb_handle_list items;
     collectLibraryItems(query, &items);
 
@@ -398,7 +414,7 @@ boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const Librar
         return boost::make_future(ArtworkResult());
 
     const auto& firstItem = items[0];
-    auto path = normalizeNodePath(query.path);
+    auto path = normalizeNodePath(item.path);
 
     pfc::string8 buffer;
     auto nodePath = getNodePath(library_manager::get(), firstItem, &buffer);

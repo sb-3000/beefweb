@@ -1,6 +1,7 @@
 import {
     skipUndefined,
     formatRange,
+    formatOptionalRange,
     parseRange,
     formatQueryOptions,
     isTransferBetweenPlaylists
@@ -278,21 +279,19 @@ export default class PlayerClient
 
     getLibraryItems(columns, range, options)
     {
-        const { offset, count } = parseRange(range);
-        const url = `api/library/items/${offset}:${count}`;
-        return this.get(url, Object.assign({ columns }, options)).then(r => r.libraryItems);
+        const params = Object.assign({ columns, range: formatOptionalRange(range) }, options);
+        return this.get('api/library/items', params).then(r => r.libraryItems);
     }
 
-    browseLibrary(path, columns, range, options)
+    getLibraryItemsByPath(path, columns, range, options)
     {
-        const { offset, count } = parseRange(range);
-        const url = `api/library/browse/${offset}:${count}`;
-        return this.get(url, Object.assign({ columns, path }, options)).then(r => r.libraryNodes);
+        const params = Object.assign({ columns, path, range: formatOptionalRange(range) }, options);
+        return this.get('api/library/items/by-path', params).then(r => r.libraryNodes);
     }
 
-    addLibraryItems(plref, options)
+    addPlaylistItemsFromLibrary(plref, options)
     {
-        return this.post('api/library/items/add', Object.assign({ plref }, options));
+        return this.post(`api/playlists/${plref}/items/add-from-library`, options);
     }
 
     getLibraryArtworkUrl(path, subsong)

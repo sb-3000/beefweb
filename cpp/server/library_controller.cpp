@@ -6,10 +6,12 @@
 #include "player_api_json.hpp"
 #include "player_api_parsers.hpp"
 
+#include <limits>
+
 namespace msrv {
 
-LibraryController::LibraryController(Request* request, Player* player, SettingsDataPtr settings)
-    : ControllerBase(request), player_(player), settings_(std::move(settings))
+LibraryController::LibraryController(Request* request, Player* player)
+    : ControllerBase(request), player_(player)
 {
 }
 
@@ -26,12 +28,18 @@ ResponsePtr LibraryController::notSupportedResponse()
         HttpStatus::S_501_NOT_IMPLEMENTED, "media library is not supported by this player");
 }
 
+Range LibraryController::readRange()
+{
+    // Media library results are produced by applying search criteria, not naturally ordered,
+    // so paging is optional and everything is returned by default
+    return optionalParam<Range>("range", Range(0, std::numeric_limits<int32_t>::max()));
+}
+
 ResponsePtr LibraryController::getItems()
 {
     if (!player_->supportsLibrary())
         return notSupportedResponse();
 
-    auto range = param<Range>("range");
     auto columnsQuery = player_->createColumnsQuery(param<std::vector<std::string>>("columns"));
 
     LibraryQuery query;
@@ -39,66 +47,34 @@ ResponsePtr LibraryController::getItems()
     query.sortBy = optionalParam<std::string>("sort", std::string());
     query.sortDescending = optionalParam<bool>("desc", false);
 
-    return Response::json({{"libraryItems", player_->getLibraryItems(query, range, columnsQuery.get())}});
+    return Response::json({{"libraryItems", player_->getLibraryItems(query, readRange(), columnsQuery.get())}});
 }
 
-ResponsePtr LibraryController::browse()
+ResponsePtr LibraryController::getItemsByPath()
 {
     if (!player_->supportsLibrary())
         return notSupportedResponse();
 
-    auto range = param<Range>("range");
     auto columnsQuery = player_->createColumnsQuery(param<std::vector<std::string>>("columns"));
 
     LibraryQuery query;
     query.path = optionalParam<std::string>("path", std::string());
     query.search = optionalParam<std::string>("query", std::string());
 
-    return Response::json({{"libraryNodes", player_->getLibraryNodes(query, range, columnsQuery.get())}});
+    return Response::json({{"libraryNodes", player_->getLibraryNodes(query, readRange(), columnsQuery.get())}});
 }
 
-ResponsePtr LibraryController::addItems()
-{
-    settings_->ensurePermissions(ApiPermissions::CHANGE_PLAYLISTS);
-
-    if (!player_->supportsLibrary())
-        return notSupportedResponse();
-
-    LibraryItemQuery query;
-    query.path = optionalParam<std::string>("path", std::string());
-    query.subsong = optionalParam<int32_t>("subsong", -1);
-    query.search = optionalParam<std::string>("query", std::string());
-
-    auto options = AddItemsOptions::NONE;
-
-    if (optionalParam("replace", false))
-        options |= AddItemsOptions::REPLACE;
-
-    if (optionalParam("play", false))
-        options |= AddItemsOptions::PLAY;
-
-    player_->addLibraryItems(
-        param<PlaylistRef>("plref"),
-        query,
-        optionalParam<int32_t>("index", -1),
-        options);
-
-    return Response::ok();
-}
-
-void LibraryController::defineRoutes(
-    Router* router, WorkQueue* workQueue, Player* player, SettingsDataPtr settings)
+void LibraryController::defineRoutes(Router* router, WorkQueue* workQueue, Player* player)
 {
     auto routes = router->defineRoutes<LibraryController>();
 
-    routes.createWith([=](Request* request) { return new LibraryController(request, player, settings); });
+    routes.createWith([=](Request* request) { return new LibraryController(request, player); });
     routes.useWorkQueue(workQueue);
     routes.setPrefix("api/library");
 
     routes.get("info", &LibraryController::getInfo);
-    routes.get("items/:range", &LibraryController::getItems);
-    routes.get("browse/:range", &LibraryController::browse);
-    routes.post("items/add", ControllerAction<LibraryController>(&LibraryController::addItems));
+    routes.get("items", &LibraryController::getItems);
+    routes.get("items/by-path", &LibraryController::getItemsByPath);
 }
 
 }

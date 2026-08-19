@@ -2,7 +2,6 @@
 
 #include "defines.hpp"
 #include "controller.hpp"
-#include "settings.hpp"
 
 namespace msrv {
 
@@ -15,21 +14,21 @@ class WorkQueue;
 class LibraryController : public ControllerBase
 {
 public:
-    LibraryController(Request* request, Player* player, SettingsDataPtr settings);
+    LibraryController(Request* request, Player* player);
     ~LibraryController();
 
     ResponsePtr getInfo();
     ResponsePtr getItems();
-    ResponsePtr browse();
-    ResponsePtr addItems();
+    ResponsePtr getItemsByPath();
 
-    static void defineRoutes(Router* router, WorkQueue* workQueue, Player* player, SettingsDataPtr settings);
+    static void defineRoutes(Router* router, WorkQueue* workQueue, Player* player);
 
 private:
     static ResponsePtr notSupportedResponse();
 
+    Range readRange();
+
     Player* player_;
-    SettingsDataPtr settings_;
 
     MSRV_NO_COPY_AND_ASSIGN(LibraryController);
 };

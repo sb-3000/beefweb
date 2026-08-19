@@ -19,7 +19,7 @@ describe('library api', () => {
         if (!isSupported)
         {
             const response = await client.handler.axios.get(
-                '/api/library/items/0:100',
+                '/api/library/items',
                 { params: { columns: ['%path%'] }, validateStatus: () => true });
 
             assert.equal(response.status, 501);
@@ -33,14 +33,18 @@ describe('library api', () => {
         assert.ok(Array.isArray(result.items));
 
         for (const item of result.items)
+        {
             assert.equal(item.columns.length, 2);
+            assert.equal(typeof item.path, 'string');
+            assert.equal(typeof item.subsong, 'number');
+        }
     });
 
     test('browse library folders', async () => {
         if (!isSupported)
             return;
 
-        const result = await client.browseLibrary('', ['%title%'], { offset: 0, count: 100 });
+        const result = await client.getLibraryItemsByPath('', ['%title%'], { offset: 0, count: 100 });
 
         assert.equal(result.offset, 0);
         assert.equal(typeof result.totalCount, 'number');
@@ -73,15 +77,19 @@ describe('library api', () => {
         const playlist = await client.addPlaylist({ title: 'library add test' });
 
         // Library is empty in tests, adding everything must still succeed and change nothing
-        await client.addLibraryItems(playlist.id, { path: '' });
+        await client.addPlaylistItemsFromLibrary(playlist.id, {});
+
+        // Explicitly referenced items resolve to nothing for the same reason
+        await client.addPlaylistItemsFromLibrary(
+            playlist.id, { items: [{ path: 'no/such/track.flac', subsong: 0 }] });
 
         const items = await client.getPlaylistItems(playlist.id, ['%path%'], { offset: 0, count: 100 });
         assert.equal(items.totalCount, 0);
     });
 
-    test('browse requires supported player', async () => {
+    test('browse by path requires supported player', async () => {
         const response = await client.handler.axios.get(
-            '/api/library/browse/0:10',
+            '/api/library/items/by-path',
             { params: { columns: ['%title%'] }, validateStatus: () => true });
 
         assert.equal(response.status, isSupported ? 200 : 501);

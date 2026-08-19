@@ -52,12 +52,12 @@ ResponsePtr ArtworkController::getLibraryArtwork()
             HttpStatus::S_501_NOT_IMPLEMENTED, "media library is not supported by this player");
     }
 
-    LibraryItemQuery query;
+    LibraryItemRef item;
 
-    query.path = param<std::string>("path");
-    query.subsong = optionalParam<int32_t>("subsong", -1);
+    item.path = param<std::string>("path");
+    item.subsong = optionalParam<int32_t>("subsong", -1);
 
-    auto responseFuture = player_->fetchLibraryArtwork(query).then(
+    auto responseFuture = player_->fetchLibraryArtwork(item).then(
         boost::launch::sync, [this](boost::unique_future<ArtworkResult> resultFuture) {
             auto result = resultFuture.get();
             return getResponse(&result);

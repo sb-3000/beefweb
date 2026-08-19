@@ -53,6 +53,11 @@ export function formatRange(range)
     return `${range.offset}:${range.count}`;
 }
 
+export function formatOptionalRange(arg)
+{
+    return arg === undefined ? undefined : formatRange(parseRange(arg));
+}
+
 export function parseRange(arg)
 {
     switch (typeof arg)
