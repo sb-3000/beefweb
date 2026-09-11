@@ -30,9 +30,19 @@ ResponsePtr LibraryController::notSupportedResponse()
 
 Range LibraryController::readRange()
 {
+    auto range = optionalParam<std::string>("range");
+
     // Media library results are produced by applying search criteria, not naturally ordered,
     // so paging is optional and everything is returned by default
-    return optionalParam<Range>("range", Range(0, std::numeric_limits<int32_t>::max()));
+    if (!range)
+        return Range(0, std::numeric_limits<int32_t>::max());
+
+    // Bare number means a single item elsewhere in the API, which is too easy
+    // to mistake for an item count here, so count is required
+    if (range->find(':') == std::string::npos)
+        throw InvalidRequestException("range should be in form offset:count");
+
+    return param<Range>("range");
 }
 
 ResponsePtr LibraryController::getItems()

@@ -80,7 +80,7 @@ describe('library api', () => {
         const playlist = await client.addPlaylist({ title: 'library add test' });
 
         // Library is empty in tests, adding everything must still succeed and change nothing
-        await client.addPlaylistItemsFromLibrary(playlist.id, {});
+        await client.addPlaylistItemsFromLibrary(playlist.id, { items: [''] });
 
         // Explicitly referenced items resolve to nothing for the same reason
         await client.addPlaylistItemsFromLibrary(
@@ -88,6 +88,21 @@ describe('library api', () => {
 
         const items = await client.getPlaylistItems(playlist.id, ['%path%'], { offset: 0, count: 100 });
         assert.equal(items.totalCount, 0);
+    });
+
+    test('reject add without items or query', async () => {
+        const response = await client.handler.axios.post(
+            '/api/playlists/0/items/add-from-library', {}, { validateStatus: () => true });
+
+        assert.equal(response.status, isSupported ? 400 : 501);
+    });
+
+    test('reject range without count', async () => {
+        const response = await client.handler.axios.get(
+            '/api/library/items',
+            { params: { columns: ['%title%'], range: '100' }, validateStatus: () => true });
+
+        assert.equal(response.status, isSupported ? 400 : 501);
     });
 
     test('browse by path requires supported player', async () => {

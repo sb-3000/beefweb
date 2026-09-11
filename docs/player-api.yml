@@ -761,7 +761,8 @@ paths:
         description: >
           Item range in form offset:count.
           Media library items are produced by applying search criteria rather than
-          naturally ordered, so paging is optional and all items are returned by default
+          naturally ordered, so paging is optional and all items are returned by default.
+          Offset without count is rejected
         schema:
           type: string
       - name: columns
@@ -807,11 +808,13 @@ paths:
       operationId: getLibraryItemsByPath
       description: >
         Returns children of a single folder: subfolders first, then tracks.
-        Items are sorted by name
+        Items are sorted by name, case-insensitively and with embedded numbers compared by value
       parameters:
       - name: range
         in: query
-        description: Item range in form offset:count, all items are returned by default
+        description: >
+          Item range in form offset:count, all items are returned by default.
+          Offset without count is rejected
         schema:
           type: string
       - name: columns
@@ -1269,7 +1272,9 @@ components:
           type: array
           description: >
             Items to add, as returned by media library queries.
-            When omitted everything matching query is added
+            When omitted everything matching query is added.
+            Request without both items and query is rejected,
+            use [""] as items to add the entire media library
           items:
             $ref: '#/components/schemas/LibraryItemRef'
         query:

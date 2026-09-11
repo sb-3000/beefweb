@@ -54,6 +54,18 @@ std::string joinNodePath(const std::string& prefix, const std::string& name)
     return prefix.empty() ? name : prefix + PATH_SEPARATOR + name;
 }
 
+// Orders names the way the platform does: case-insensitive, embedded numbers compared by value.
+// Names that still compare equal (e.g. differ only in case) are kept distinct and ordered byte-wise,
+// otherwise such folders would be merged together
+struct NameLess
+{
+    bool operator()(const std::string& left, const std::string& right) const
+    {
+        auto result = pfc::sysNaturalSortCompareI(left.c_str(), right.c_str());
+        return result != 0 ? result < 0 : left < right;
+    }
+};
+
 using NodeItem = std::pair<std::string, metadb_handle_ptr>;
 
 // Single file may hold several tracks (cue sheets), keep such tracks in subsong order
@@ -61,7 +73,7 @@ void sortItems(std::vector<NodeItem>* items)
 {
     std::sort(items->begin(), items->end(), [](const NodeItem& left, const NodeItem& right) {
         if (left.first != right.first)
-            return left.first < right.first;
+            return NameLess()(left.first, right.first);
 
         return left.second->get_location().get_subsong() < right.second->get_location().get_subsong();
     });
@@ -474,7 +486,7 @@ LibraryNodesResult PlayerImpl::getLibraryNodes(
     auto prefix = normalizeNodePath(query.path);
     auto childOffset = prefix.empty() ? 0 : prefix.length() + 1;
 
-    std::map<std::string, int32_t> folders;
+    std::map<std::string, int32_t, NameLess> folders;
     std::vector<NodeItem> files;
 
     pfc::string8 buffer;
