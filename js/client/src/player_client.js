@@ -289,6 +289,12 @@ export default class PlayerClient
         return this.get('api/library/items/by-path', params).then(r => r.libraryNodes);
     }
 
+    getLibraryItemsByColumns(groupBy, group, columns, range, options)
+    {
+        const params = Object.assign({ groupBy, group, columns, range: formatOptionalRange(range) }, options);
+        return this.get('api/library/items/by-columns', params).then(r => r.libraryNodes);
+    }
+
     addPlaylistItemsFromLibrary(plref, options)
     {
         return this.post(`api/playlists/${plref}/items/add-from-library`, options);

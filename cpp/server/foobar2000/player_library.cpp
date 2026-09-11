@@ -106,6 +106,54 @@ bool matchesRef(const LibraryItemRef& ref, const std::string& itemPath, const me
     return isSubpath(itemPath, path);
 }
 
+// Separates levels in grouping pattern output, same as Album List views
+constexpr char GROUP_SEPARATOR = '|';
+
+// Shown for empty level values, same as for missing fields in title formatting,
+// this also keeps any group distinguishable from the top level
+constexpr char MISSING_VALUE[] = "?";
+
+std::vector<std::string> splitLevels(const std::string& text)
+{
+    std::vector<std::string> levels;
+    size_t start = 0;
+
+    while (true)
+    {
+        auto end = text.find(GROUP_SEPARATOR, start);
+        auto level = text.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        levels.emplace_back(level.empty() ? std::string(MISSING_VALUE) : std::move(level));
+
+        if (end == std::string::npos)
+            return levels;
+
+        start = end + 1;
+    }
+}
+
+std::string joinLevels(std::vector<std::string>::const_iterator begin, std::vector<std::string>::const_iterator end)
+{
+    std::string result;
+
+    for (auto it = begin; it != end; ++it)
+    {
+        if (it != begin)
+            result += GROUP_SEPARATOR;
+
+        result += *it;
+    }
+
+    return result;
+}
+
+struct GroupTrack
+{
+    std::string label;
+    std::string path;
+    std::string sortKey;
+    metadb_handle_ptr item;
+};
+
 // Item locations are prefixed with a scheme, plain file system path is what artwork lookup needs
 std::string getAbsolutePath(const metadb_handle_ptr& item)
 {
@@ -573,6 +621,153 @@ LibraryNodesResult PlayerImpl::getLibraryNodes(
     }
 
     return nodesResult;
+}
+
+LibraryGroupsResult PlayerImpl::getLibraryGroups(
+    const LibraryGroupQuery& query, const Range& range, ColumnsQuery* columns)
+{
+    auto queryImpl = dynamic_cast<ColumnsQueryImpl*>(columns);
+    if (!queryImpl)
+        throw std::logic_error("ColumnsQueryImpl is required");
+
+    titleformat_object::ptr groupBy;
+    if (!titleFormatCompiler_->compile(groupBy, query.groupBy.c_str()))
+        throw InvalidRequestException("invalid format expression: " + query.groupBy);
+
+    titleformat_object::ptr sortBy;
+    if (!query.sortBy.empty() && !titleFormatCompiler_->compile(sortBy, query.sortBy.c_str()))
+        throw InvalidRequestException("invalid format expression: " + query.sortBy);
+
+    auto current = query.group.empty() ? std::vector<std::string>() : splitLevels(query.group);
+    auto depth = current.size();
+
+    auto libraryManager = library_manager::get();
+
+    metadb_handle_list items;
+    libraryManager->get_all_items(items);
+
+    if (!query.search.empty())
+        filterItems(&items, query.search);
+
+    std::map<std::string, int32_t, NameLess> groups;
+    std::vector<GroupTrack> tracks;
+    pfc::string8 buffer;
+
+    for (t_size i = 0; i < items.get_count(); i++)
+    {
+        const auto& item = items[i];
+
+        item->format_title(nullptr, buffer, groupBy, nullptr);
+        auto levels = splitLevels(std::string(buffer.get_ptr(), buffer.get_length()));
+
+        // Item belongs below current node only when it has more levels and all selected values match
+        if (levels.size() <= depth || !std::equal(current.begin(), current.end(), levels.begin()))
+            continue;
+
+        // Last level of an item is the label of the track itself
+        if (levels.size() == depth + 1)
+        {
+            GroupTrack track;
+            track.label = std::move(levels[depth]);
+            track.path = getNodePath(libraryManager, item, &buffer);
+            track.item = item;
+            tracks.emplace_back(std::move(track));
+        }
+        else
+        {
+            groups[levels[depth]]++;
+        }
+    }
+
+    for (auto& track : tracks)
+    {
+        if (sortBy.is_valid())
+        {
+            track.item->format_title(nullptr, buffer, sortBy, nullptr);
+            track.sortKey.assign(buffer.get_ptr(), buffer.get_length());
+        }
+        else
+        {
+            track.sortKey = track.label;
+        }
+    }
+
+    // Path and subsong make the order deterministic, so that paging is stable
+    std::sort(tracks.begin(), tracks.end(), [](const GroupTrack& left, const GroupTrack& right) {
+        if (left.sortKey != right.sortKey)
+            return NameLess()(left.sortKey, right.sortKey);
+
+        if (left.path != right.path)
+            return left.path < right.path;
+
+        return left.item->get_location().get_subsong() < right.item->get_location().get_subsong();
+    });
+
+    if (query.sortDescending)
+        std::reverse(tracks.begin(), tracks.end());
+
+    auto groupPath = joinLevels(current.begin(), current.end());
+
+    std::vector<LibraryNodeInfo> nodes;
+    std::vector<metadb_handle_ptr> handles;
+
+    nodes.reserve(groups.size() + tracks.size());
+    handles.reserve(groups.size() + tracks.size());
+
+    for (auto& group : groups)
+    {
+        LibraryNodeInfo node;
+        node.isFolder = true;
+        node.name = group.first;
+        node.group = groupPath.empty() ? group.first : groupPath + GROUP_SEPARATOR + group.first;
+        node.itemCount = group.second;
+        nodes.emplace_back(std::move(node));
+        handles.emplace_back();
+    }
+
+    for (auto& track : tracks)
+    {
+        LibraryNodeInfo node;
+        node.name = std::move(track.label);
+        node.path = std::move(track.path);
+        node.subsong = static_cast<int32_t>(track.item->get_location().get_subsong());
+        nodes.emplace_back(std::move(node));
+        handles.emplace_back(track.item);
+    }
+
+    auto totalCount = nodes.size();
+    auto offset = std::min(static_cast<size_t>(range.offset), totalCount);
+    auto endOffset = std::min(static_cast<size_t>(range.endOffset()), totalCount);
+
+    std::vector<LibraryNodeInfo> result;
+
+    if (offset < endOffset)
+    {
+        result.reserve(endOffset - offset);
+
+        for (size_t i = offset; i < endOffset; i++)
+        {
+            if (handles[i].is_valid())
+                nodes[i].columns = evaluateItemColumns(handles[i], queryImpl->columns, &buffer);
+
+            result.emplace_back(std::move(nodes[i]));
+        }
+    }
+
+    LibraryGroupsResult groupsResult(
+        static_cast<int32_t>(offset),
+        static_cast<int32_t>(totalCount),
+        std::move(result));
+
+    groupsResult.group = groupPath;
+
+    if (depth > 0)
+    {
+        groupsResult.hasParent = true;
+        groupsResult.parentGroup = joinLevels(current.begin(), current.end() - 1);
+    }
+
+    return groupsResult;
 }
 
 }

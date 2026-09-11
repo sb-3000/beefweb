@@ -105,6 +105,38 @@ describe('library api', () => {
         assert.equal(response.status, isSupported ? 400 : 501);
     });
 
+    test('browse by columns', async () => {
+        if (!isSupported)
+        {
+            const response = await client.handler.axios.get(
+                '/api/library/items/by-columns',
+                { params: { columns: ['%title%'], groupBy: '%artist%|%title%' }, validateStatus: () => true });
+
+            assert.equal(response.status, 501);
+            return;
+        }
+
+        const root = await client.getLibraryItemsByColumns('%artist%|%title%', '', ['%title%']);
+
+        assert.equal(root.offset, 0);
+        assert.equal(root.group, '');
+        assert.equal(root.parentGroup, undefined);
+        assert.ok(Array.isArray(root.items));
+
+        const nested = await client.getLibraryItemsByColumns('%artist%|%title%', 'Some Artist', ['%title%']);
+
+        assert.equal(nested.group, 'Some Artist');
+        assert.equal(nested.parentGroup, '');
+    });
+
+    test('browse by columns requires grouping pattern', async () => {
+        const response = await client.handler.axios.get(
+            '/api/library/items/by-columns',
+            { params: { columns: ['%title%'] }, validateStatus: () => true });
+
+        assert.equal(response.status, isSupported ? 400 : 501);
+    });
+
     test('browse by path requires supported player', async () => {
         const response = await client.handler.axios.get(
             '/api/library/items/by-path',

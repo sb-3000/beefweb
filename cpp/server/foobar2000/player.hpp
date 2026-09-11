@@ -112,6 +112,9 @@ public:
     LibraryNodesResult getLibraryNodes(
         const LibraryQuery& query, const Range& range, ColumnsQuery* columns) override;
 
+    LibraryGroupsResult getLibraryGroups(
+        const LibraryGroupQuery& query, const Range& range, ColumnsQuery* columns) override;
+
     void addLibraryItems(
         const PlaylistRef& plref,
         const LibraryItemQuery& query,
