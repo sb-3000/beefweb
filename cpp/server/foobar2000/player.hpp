@@ -118,7 +118,8 @@ public:
         int32_t targetIndex,
         AddItemsOptions options) override;
 
-    boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemRef& item) override;
+    boost::unique_future<ArtworkResult> fetchLibraryArtwork(
+        const LibraryItemRef& item, bool preferFolderImage) override;
 
     boost::unique_future<ArtworkResult> fetchCurrentArtwork() override;
     boost::unique_future<ArtworkResult> fetchArtwork(const ArtworkQuery& query) override;

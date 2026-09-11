@@ -108,8 +108,9 @@ std::string getAbsolutePath(const metadb_handle_ptr& item)
     return std::string(path);
 }
 
-// Folders may hold their own artwork which is unrelated to artwork of the tracks below,
-// this is what a folder view is expected to show
+// Folders may hold an image file that represents the folder itself.
+// This is not how the player resolves artwork (it uses configurable per track patterns),
+// so it is only used when explicitly requested
 std::string findFolderArtwork(const std::string& folderPath)
 {
     static const char* const names[] = {"folder", "cover", "front", "album", "artwork"};
@@ -180,6 +181,29 @@ bool endsWithNodePath(const std::string& absolutePath, const std::string& nodePa
     }
 
     return true;
+}
+
+// Absolute path of the folder an item reference points to, derived from a track below it.
+// Empty when the reference points to a file or to the whole library
+std::string getFolderPath(const LibraryItemRef& ref, const metadb_handle_ptr& firstItem)
+{
+    auto path = normalizeNodePath(ref.path);
+    if (path.empty())
+        return std::string();
+
+    pfc::string8 buffer;
+    auto nodePath = getNodePath(library_manager::get(), firstItem, &buffer);
+
+    if (nodePath.length() <= path.length())
+        return std::string();
+
+    auto absolutePath = getAbsolutePath(firstItem);
+    auto suffixLength = nodePath.length() - path.length();
+
+    if (absolutePath.length() <= suffixLength || !endsWithNodePath(absolutePath, nodePath))
+        return std::string();
+
+    return absolutePath.substr(0, absolutePath.length() - suffixLength);
 }
 
 class ItemCounter : public library_manager::enum_callback
@@ -402,7 +426,8 @@ void PlayerImpl::addLibraryItems(
     }
 }
 
-boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const LibraryItemRef& item)
+boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(
+    const LibraryItemRef& item, bool preferFolderImage)
 {
     LibraryItemQuery query;
     query.items.emplace_back(item);
@@ -414,20 +439,13 @@ boost::unique_future<ArtworkResult> PlayerImpl::fetchLibraryArtwork(const Librar
         return boost::make_future(ArtworkResult());
 
     const auto& firstItem = items[0];
-    auto path = normalizeNodePath(item.path);
 
-    pfc::string8 buffer;
-    auto nodePath = getNodePath(library_manager::get(), firstItem, &buffer);
-
-    // Query addresses a folder rather than a single file, prefer artwork stored in that folder
-    if (!path.empty() && nodePath.length() > path.length())
+    if (preferFolderImage)
     {
-        auto absolutePath = getAbsolutePath(firstItem);
-        auto suffixLength = nodePath.length() - path.length();
+        auto folderPath = getFolderPath(item, firstItem);
 
-        if (absolutePath.length() > suffixLength && endsWithNodePath(absolutePath, nodePath))
+        if (!folderPath.empty())
         {
-            auto folderPath = absolutePath.substr(0, absolutePath.length() - suffixLength);
             auto artwork = findFolderArtwork(folderPath);
 
             if (!artwork.empty())

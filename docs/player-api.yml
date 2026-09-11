@@ -895,6 +895,16 @@ paths:
           When omitted artwork of the first matching track is returned
         schema:
           type: integer
+      - name: folderImage
+        in: query
+        description: >
+          When path points to a folder, return an image file stored in that folder
+          (folder, cover, front, album or artwork with a common image extension) if one exists.
+          By default artwork of the first track is returned, resolved the same way as
+          elsewhere in the player
+        schema:
+          type: boolean
+          default: false
       responses:
         200:
           description: Success

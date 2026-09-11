@@ -294,12 +294,15 @@ export default class PlayerClient
         return this.post(`api/playlists/${plref}/items/add-from-library`, options);
     }
 
-    getLibraryArtworkUrl(path, subsong)
+    getLibraryArtworkUrl(path, subsong, options = {})
     {
         const params = new URLSearchParams({ path });
 
         if (subsong !== undefined)
             params.set('subsong', subsong);
+
+        if (options.folderImage)
+            params.set('folderImage', 'true');
 
         return `api/artwork/library?${params}`;
     }

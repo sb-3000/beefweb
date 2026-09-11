@@ -63,11 +63,14 @@ describe('library api', () => {
     });
 
     test('library artwork for missing item', async () => {
-        const response = await client.handler.axios.get(
-            '/api/artwork/library',
-            { params: { path: 'no\\such\\track.flac' }, validateStatus: () => true });
+        for (const folderImage of [false, true])
+        {
+            const response = await client.handler.axios.get(
+                '/api/artwork/library',
+                { params: { path: 'no/such/folder', folderImage }, validateStatus: () => true });
 
-        assert.equal(response.status, isSupported ? 404 : 501);
+            assert.equal(response.status, isSupported ? 404 : 501);
+        }
     });
 
     test('add library items to playlist', async () => {

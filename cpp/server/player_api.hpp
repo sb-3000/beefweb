@@ -732,9 +732,13 @@ public:
         throw std::logic_error("media library is not supported by this player");
     }
 
-    virtual boost::unique_future<ArtworkResult> fetchLibraryArtwork(const LibraryItemRef& item)
+    // When item refers to a folder and preferFolderImage is set,
+    // image file stored in that folder is returned instead of artwork of the first track
+    virtual boost::unique_future<ArtworkResult> fetchLibraryArtwork(
+        const LibraryItemRef& item, bool preferFolderImage)
     {
         (void) item;
+        (void) preferFolderImage;
 
         throw std::logic_error("media library is not supported by this player");
     }
