@@ -28,7 +28,7 @@
 #if MSRV_VERSION_FINAL
 #define MSRV_VERSION_SUFFIX ""
 #else
-#define MSRV_VERSION_SUFFIX " beta"
+#define MSRV_VERSION_SUFFIX " beta library-api.1"
 #endif
 
 #define MSRV_VERSION_STRING_DETAILED \
